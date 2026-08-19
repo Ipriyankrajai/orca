@@ -3141,7 +3141,8 @@ export function connectPanePty(
       pendingTerminalBellNotification = false
       if (
         !shouldDispatchTerminalBellNotification(
-          useAppStore.getState().agentStatusByPaneKey[cacheKey]
+          useAppStore.getState().agentStatusByPaneKey[cacheKey],
+          { agentTaskCompleteNotificationsEnabled: isAgentTaskCompleteNotificationEnabled() }
         )
       ) {
         return

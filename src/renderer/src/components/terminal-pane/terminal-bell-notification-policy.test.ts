@@ -4,6 +4,7 @@ import { AGENT_STATUS_STALE_AFTER_MS } from '../../../../shared/agent-status-typ
 import { shouldDispatchTerminalBellNotification } from './terminal-bell-notification-policy'
 
 const NOW = 1_700_000_000_000
+const AGENT_CHANNEL_ON = { agentTaskCompleteNotificationsEnabled: true, now: NOW }
 
 function makeStatus(overrides: Partial<AgentStatusEntry>): AgentStatusEntry {
   return {
@@ -19,34 +20,48 @@ function makeStatus(overrides: Partial<AgentStatusEntry>): AgentStatusEntry {
 
 describe('terminal bell notification policy', () => {
   it('dispatches when no agent owns the pane', () => {
-    expect(shouldDispatchTerminalBellNotification(undefined, NOW)).toBe(true)
+    expect(shouldDispatchTerminalBellNotification(undefined, AGENT_CHANNEL_ON)).toBe(true)
   })
 
   it('suppresses the bell while the agent is mid-turn', () => {
     // Why: auto-approving permission modes ring the bell and keep going, so the
     // BEL announces attention that nothing is actually waiting on.
-    expect(shouldDispatchTerminalBellNotification(makeStatus({ state: 'working' }), NOW)).toBe(
-      false
-    )
+    expect(
+      shouldDispatchTerminalBellNotification(makeStatus({ state: 'working' }), AGENT_CHANNEL_ON)
+    ).toBe(false)
   })
 
   it('suppresses the bell on a real pause, which the richer attention banner owns', () => {
-    expect(shouldDispatchTerminalBellNotification(makeStatus({ state: 'waiting' }), NOW)).toBe(
-      false
-    )
-    expect(shouldDispatchTerminalBellNotification(makeStatus({ state: 'blocked' }), NOW)).toBe(
-      false
-    )
+    expect(
+      shouldDispatchTerminalBellNotification(makeStatus({ state: 'waiting' }), AGENT_CHANNEL_ON)
+    ).toBe(false)
+    expect(
+      shouldDispatchTerminalBellNotification(makeStatus({ state: 'blocked' }), AGENT_CHANNEL_ON)
+    ).toBe(false)
   })
 
   it('dispatches once the turn is over', () => {
-    expect(shouldDispatchTerminalBellNotification(makeStatus({ state: 'done' }), NOW)).toBe(true)
+    expect(
+      shouldDispatchTerminalBellNotification(makeStatus({ state: 'done' }), AGENT_CHANNEL_ON)
+    ).toBe(true)
   })
 
   it('dispatches when the hook stream went silent long enough to be stale', () => {
     const status = makeStatus({ state: 'working' })
     expect(
-      shouldDispatchTerminalBellNotification(status, NOW + AGENT_STATUS_STALE_AFTER_MS + 1)
+      shouldDispatchTerminalBellNotification(status, {
+        agentTaskCompleteNotificationsEnabled: true,
+        now: NOW + AGENT_STATUS_STALE_AFTER_MS + 1
+      })
+    ).toBe(true)
+  })
+
+  it('dispatches while the agent notification channel is off, its only agent signal', () => {
+    expect(
+      shouldDispatchTerminalBellNotification(makeStatus({ state: 'working' }), {
+        agentTaskCompleteNotificationsEnabled: false,
+        now: NOW
+      })
     ).toBe(true)
   })
 
@@ -55,7 +70,7 @@ describe('terminal bell notification policy', () => {
     expect(
       shouldDispatchTerminalBellNotification(
         makeStatus({ state: 'working', restoredUnconfirmed: true }),
-        NOW
+        AGENT_CHANNEL_ON
       )
     ).toBe(true)
   })

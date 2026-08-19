@@ -16,14 +16,19 @@ import {
  * Why: agent CLIs ring the bell as their own attention channel (Claude Code's
  * default notification channel is the terminal bell), so while a pane's agent is
  * mid-turn its hooks are the authoritative signal, not the byte. A real pause lands
- * as `waiting`/`blocked` and fires the richer "needs input" banner; under an
- * auto-approving permission mode (Claude's `auto`, the built-in default since
- * 2.1.228) the agent rings the bell and keeps going, so the raw BEL would announce
- * attention nothing is waiting on.
+ * as `waiting`/`blocked` and fires the richer "needs input" banner; an end-of-turn
+ * BEL beats the completion hook and would otherwise win the worktree cooldown with
+ * a contextless banner; and under an auto-approving permission mode (Claude's
+ * `auto`, Codex auto-approval) the agent bells and keeps going.
  */
 export function shouldDispatchTerminalBellNotification(
   agentStatus: AgentStatusEntry | undefined,
-  now = Date.now()
+  options: { agentTaskCompleteNotificationsEnabled: boolean; now?: number }
 ): boolean {
-  return !isFreshNonDoneAgentStatus(agentStatus, now)
+  // Why: with the agent channel switched off, the bell is the user's only agent
+  // signal — yielding to a banner that will never fire would silence the pane.
+  if (!options.agentTaskCompleteNotificationsEnabled) {
+    return true
+  }
+  return !isFreshNonDoneAgentStatus(agentStatus, options.now ?? Date.now())
 }

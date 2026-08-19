@@ -111,10 +111,11 @@ export function startParkedTerminalByteWatcher(
         return
       }
       pendingBellNotification = false
+      const state = useAppStore.getState()
       if (
-        !shouldDispatchTerminalBellNotification(
-          useAppStore.getState().agentStatusByPaneKey[paneKey]
-        )
+        !shouldDispatchTerminalBellNotification(state.agentStatusByPaneKey[paneKey], {
+          agentTaskCompleteNotificationsEnabled: isAgentTaskCompleteOsNotificationEnabled(state)
+        })
       ) {
         return
       }
