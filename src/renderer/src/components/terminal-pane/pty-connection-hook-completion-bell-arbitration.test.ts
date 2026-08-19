@@ -245,7 +245,41 @@ describe('connectPanePty', () => {
     )
   })
 
-  it('restores a suppressed terminal bell when a delayed hook completion resumes work', async () => {
+  it('drops a terminal bell rung by an agent that is still mid-turn', async () => {
+    // Why: Claude's auto mode (and Codex auto-approval) rings the bell for prompts it
+    // then approves itself, so the pane never leaves 'working' and nothing needs the user.
+    const { connectPanePty } = await import('./pty-connection')
+    const transport = createMockTransport('pty-auto')
+    transportFactoryQueue.push(transport)
+    enableActiveRuntimeEnvironment()
+    mockStoreState.ptyIdsByTabId = { 'tab-1': ['pty-auto'] }
+    mockStoreState.terminalLayoutsByTabId!['tab-1'].ptyIdsByLeafId = { [LEAF_1]: 'pty-auto' }
+
+    vi.useFakeTimers()
+    const pane = createPane(1)
+    const manager = createManager(1)
+    const deps = createDeps()
+
+    connectPanePty(pane as never, manager as never, deps as never)
+
+    const statusHandler = createdTransportOptions[0]?.onAgentStatus as
+      | ((payload: { state: 'working'; prompt: string; agentType: 'claude' }) => void)
+      | undefined
+    const bellHandler = createdTransportOptions[0]?.onBell as (() => void) | undefined
+    if (!statusHandler || !bellHandler) {
+      throw new Error('Expected hook status and bell handlers to be registered')
+    }
+
+    statusHandler({ state: 'working', prompt: 'bulk upload evals', agentType: 'claude' })
+    bellHandler()
+    vi.advanceTimersByTime(AGENT_TASK_COMPLETE_NOTIFICATION_MAX_WAIT_MS)
+
+    expect(deps.dispatchNotification).not.toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'terminal-bell' })
+    )
+  })
+
+  it('drops a suppressed terminal bell when a delayed hook completion resumes work', async () => {
     const { connectPanePty } = await import('./pty-connection')
     const transport = createMockTransport('tab-pty')
     transportFactoryQueue.push(transport)
@@ -297,7 +331,9 @@ describe('connectPanePty', () => {
     })
     vi.advanceTimersByTime(AGENT_TASK_COMPLETE_NOTIFICATION_GRACE_MS)
 
-    expect(deps.dispatchNotification).toHaveBeenCalledWith(
+    // Why: the agent owns the pane and is mid-turn, so the bell has no attention to
+    // announce — auto-approving permission modes ring it and keep working.
+    expect(deps.dispatchNotification).not.toHaveBeenCalledWith(
       expect.objectContaining({ source: 'terminal-bell' })
     )
     expect(deps.dispatchNotification).not.toHaveBeenCalledWith(

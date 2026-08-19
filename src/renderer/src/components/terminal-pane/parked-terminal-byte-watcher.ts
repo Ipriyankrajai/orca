@@ -11,6 +11,7 @@ import {
   isAgentTaskCompleteOsNotificationEnabledFromState,
   isAgentTaskCompleteTrackingEnabledFromState
 } from './agent-task-complete-policy'
+import { shouldDispatchTerminalBellNotification } from './terminal-bell-notification-policy'
 import { createCommandCodeOutputStatusDetector } from '../../../../shared/command-code-output-status'
 import { createOsc133CommandFinishedScanner } from '../../../../shared/terminal-osc133-command-finished'
 import {
@@ -110,6 +111,13 @@ export function startParkedTerminalByteWatcher(
         return
       }
       pendingBellNotification = false
+      if (
+        !shouldDispatchTerminalBellNotification(
+          useAppStore.getState().agentStatusByPaneKey[paneKey]
+        )
+      ) {
+        return
+      }
       dispatchTerminalNotification(worktreeId, { source: 'terminal-bell', paneKey })
     }, PARKED_NOTIFICATION_GRACE_MS)
   }

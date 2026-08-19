@@ -328,6 +328,7 @@ import {
   isAgentTaskCompleteOsNotificationEnabledFromState,
   isAgentTaskCompleteTrackingEnabledFromState
 } from './agent-task-complete-policy'
+import { shouldDispatchTerminalBellNotification } from './terminal-bell-notification-policy'
 import {
   isMainTerminalSideEffectAuthorityForPty,
   registerTerminalSideEffectFactConsumer
@@ -3138,6 +3139,13 @@ export function connectPanePty(
         return
       }
       pendingTerminalBellNotification = false
+      if (
+        !shouldDispatchTerminalBellNotification(
+          useAppStore.getState().agentStatusByPaneKey[cacheKey]
+        )
+      ) {
+        return
+      }
       deps.dispatchNotification({ source: 'terminal-bell', paneKey: cacheKey })
     }, AGENT_TASK_COMPLETE_NOTIFICATION_GRACE_MS)
   }

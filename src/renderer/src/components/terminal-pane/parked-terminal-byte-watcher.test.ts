@@ -18,6 +18,8 @@ const WORKING_TITLE_OSC = '\x1b]0;⠋ Build feature\x07'
 const IDLE_TITLE = '✳ Build feature'
 const IDLE_TITLE_OSC = `\x1b]0;${IDLE_TITLE}\x07`
 
+type MockAgentStatus = { state: string; prompt: string; agentType?: string; updatedAt?: number }
+
 type MockStoreState = {
   settings: {
     theme?: 'system' | 'dark' | 'light'
@@ -35,7 +37,7 @@ type MockStoreState = {
   markTerminalPaneUnread: ReturnType<typeof vi.fn>
   setCacheTimerStartedAt: ReturnType<typeof vi.fn>
   observeTerminalGitHubPullRequestLink: ReturnType<typeof vi.fn>
-  agentStatusByPaneKey: Record<string, { state: string; prompt: string; agentType?: string }>
+  agentStatusByPaneKey: Record<string, MockAgentStatus>
 }
 
 const dispatchTerminalNotification = vi.fn()
@@ -226,6 +228,23 @@ describe('startParkedTerminalByteWatcher', () => {
       source: 'terminal-bell',
       paneKey: PANE_KEY
     })
+    dispose()
+  })
+
+  it('skips the BEL notification while the pane agent is mid-turn', async () => {
+    // Why: an auto-approving agent rings the bell and keeps working, so the contextless
+    // "Attention requested" banner has nothing to act on.
+    mockStoreState.agentStatusByPaneKey = {
+      [PANE_KEY]: { state: 'working', prompt: 'Build feature', updatedAt: Date.now() }
+    }
+    const { dispose } = await startWatcher()
+
+    emit('build finished\x07')
+    flushSideEffects()
+    vi.advanceTimersByTime(NOTIFICATION_GRACE_MS)
+
+    expect(mockStoreState.markWorktreeUnread).toHaveBeenCalledWith(WORKTREE_ID)
+    expect(dispatchTerminalNotification).not.toHaveBeenCalled()
     dispose()
   })
 
